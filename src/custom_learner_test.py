@@ -1,9 +1,9 @@
 import eb_ml_utils
 import eb_ml_battery_lib
-import eb_colab_utils
+from "../src/eb_colab_utils.py" import *
 # Data acquition file to load from dateset folder
-battery_list= [1,2,3,4]
-test_battery_list= [5]
+measure_list= ["02_1","02_2","02_3","02_4","02_5","02_6","02_7","02_8","02_9"]
+test_measure_list= [5]
 
 
 #configuration dictionary
@@ -15,7 +15,7 @@ config['ROOT_DIR'] = eb_colab_utils.get_root_path("batterie")
 
 # Folder with dataset in CSV format
 #config['DATASETS_DIR'] = config['ROOT_DIR']+"/datasets"
-config['DATASETS_DIR'] = "/Users/emanuelebuchicchio/ai4power/datasets/EIS-vs-SOC"
+config['DATASETS_DIR'] = "/Users/emanuelebuchicchio/ml-4-measurement/datasets/EIS-v-SOC-may2022"
 
 # List of SoC level into dataset
 #config['soc_list']=[100,90,80,70,60,50,40,30,20,10]
@@ -47,16 +47,16 @@ config['TEST_IMAGES_PATH'] = "/Users/emanuelebuchicchio/ai4power/TEST_IMG_SAVE"
 
 #GENERATE IMAGE
 if(generate_images):
-    dataset,feature_col_names=eb_ml_battery_lib.load_soc_dataset_ec(battery_list,config["soc_list"],config['DATASETS_DIR'])
+    dataset,feature_col_names=eb_ml_battery_lib.load_soc_dataset_ec(measure_list,config["soc_list"],config['DATASETS_DIR'])
     eb_ml_battery_lib.generate_image_from_ec(dataset,feature_col_names,config['IMAGES_PATH'],config['ExperimentName'],DATA_AUGMENTATION_FACTOR=10)
 
-    test_dataset,feature_col_names=eb_ml_battery_lib.load_soc_dataset_ec(test_battery_list,config["soc_list"],config['DATASETS_DIR'])
+    test_dataset,feature_col_names=eb_ml_battery_lib.load_soc_dataset_ec(test_measure_list,config["soc_list"],config['DATASETS_DIR'])
     eb_ml_battery_lib.generate_image_from_ec(test_dataset,feature_col_names,config['IMAGES_PATH'],config['ExperimentName'],DATA_AUGMENTATION_FACTOR=10)
 
 
 
 # TRAINING
-learn= eb_ml_utils.build_and_train_custom_learner(battery_list,test_battery_list,
+learn= eb_ml_utils.build_and_train_custom_learner(measure_list,test_measure_list,
 data_loader_function=eb_ml_battery_lib.load_soc_dataset_ec,image_generator_function=eb_ml_battery_lib.generate_image_from_ec ,config=config,n_epochs=n_epochs)
 #SAVE
 weights_filename=eb_ml_utils.save_model_weights(learn,config["MODELS_DIR"],model_name)

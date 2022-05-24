@@ -6,32 +6,35 @@ from fastai.vision.all import *
 from sklearn.preprocessing import MinMaxScaler
 from eb_ml_utils import get_items_func,rescale_dataset,plottingfunction
 
+# CONFIG PAREMETERS
+CSV_FILE_PREFIX='/EIS_BATT'
+
 #DEFAULT OFFSET FOR DATA AUGMENTATION CSV FILE NAME GENERATION 
 AUGMENTATION_OFFSET = 1000
 DATA_AUGMENTATION_FACTOR_OFFSET = 100
 
-def build_and_train_battery_learner_from_EIS(battery_list,test_battery_list,config,n_epochs=50,generate_training_images=False,generate_test_images=False,rescale=False):
+def build_and_train_battery_learner_from_EIS(battery_list,test_measure_list,config,n_epochs=50,generate_training_images=False,generate_test_images=False,rescale=False):
   """ Build and train a FastAI learner for battery SoC classification task """
-  learn= build_battery_soc_model_learner(battery_list,test_battery_list,config,generate_training_images,generate_test_images)
+  learn= build_battery_soc_model_learner(battery_list,test_measure_list,config,generate_training_images,generate_test_images)
   lr_obj = learn.lr_find()
   print(f"Valley: {lr_obj.valley:.2e}")
   learn.fine_tune(n_epochs,lr_obj.valley)
   return learn
 
-def build_and_train_battery_learner_from_EC(battery_list,test_battery_list,config,n_epochs=50,generate_training_images=False,generate_test_images=False,rescale=True):
+def build_and_train_battery_learner_from_EC(battery_list,test_measure_list,config,n_epochs=50,generate_training_images=False,generate_test_images=False,rescale=True):
   """ Build and train a FastAI learner for battery SoC classification task """
-  learn= build_battery_soc_model_learner_ec(battery_list,test_battery_list,config,generate_training_images,generate_test_images,rescale)
+  learn= build_battery_soc_model_learner_ec(battery_list,test_measure_list,config,generate_training_images,generate_test_images,rescale)
   lr_obj = learn.lr_find()
   print(f"Valley: {lr_obj.valley:.2e}")
   learn.fine_tune(n_epochs,lr_obj.valley)
   return learn
 
 
-def build_battery_soc_model_learner(battery_list,test_battery_list,config,
+def build_battery_soc_model_learner(measure_list,test_battery_list,config,
 generate_training_images=False,generate_test_images=False):
   """ Train a battery SOC classifier model """
   #Train - Validation
-  dataset,eis_col_names=load_soc_dataset(battery_list,config["soc_list"],config['DATASETS_DIR'])
+  dataset,eis_col_names=load_soc_dataset(measure_list,config["soc_list"],config['DATASETS_DIR'])
   if(generate_training_images):
     generate_image_files_from_eis(dataset,eis_col_names,config['IMAGES_PATH'],config['ExperimentName'],DATA_AUGMENTATION_FACTOR=10)
 
@@ -60,13 +63,13 @@ generate_training_images=False,generate_test_images=False):
   learn = cnn_learner(dl, resnet18, metrics=accuracy)
   return learn
 
-def build_battery_soc_model_learner_ec(battery_list,test_battery_list,config,
+def build_battery_soc_model_learner_ec(measure_list,test_battery_list,config,
 generate_training_images=False,generate_test_images=False,rescale=True):
   """ Train a battery SOC classifier model """
   rePat=config['rePat'] #r'^.*_(\d+).png$'
 
   #Train - Validation
-  dataset,feature_col_names=load_soc_dataset_ec(battery_list,config["soc_list"],config['DATASETS_DIR'])
+  dataset,feature_col_names=load_soc_dataset_ec(measure_list,config["soc_list"],config['DATASETS_DIR'])
   if(generate_training_images):
     generate_image_from_ec(dataset,feature_col_names,config['IMAGES_PATH'],config['ExperimentName'],DATA_AUGMENTATION_FACTOR=10)
 
@@ -94,9 +97,10 @@ generate_training_images=False,generate_test_images=False,rescale=True):
   learn = cnn_learner(dl, resnet18, metrics=accuracy)
   return learn    
 
-def build_image_dataset_from_eis(battery_list,test_battery_list,config,generate_training_images=False,generate_test_images=False):
+def build_image_dataset_from_eis(measure_list,test_battery_list,config,generate_training_images=False,generate_test_images=False):
+  ''' Build image dataset from EIS data. Defualt is to generate new images from EIS data.'''
   #Train - Validation
-  dataset,eis_col_names=load_soc_dataset(battery_list,config['soc_list'],config['DATASETS_DIR'])
+  dataset,eis_col_names=load_soc_dataset(measure_list,config['soc_list'],config['DATASETS_DIR'])
   if(generate_training_images):
     generate_image_files_from_eis(dataset,eis_col_names,config['IMAGES_PATH'],config['ExperimentName'],DATA_AUGMENTATION_FACTOR=10)
 
@@ -105,13 +109,14 @@ def build_image_dataset_from_eis(battery_list,test_battery_list,config,generate_
   if(generate_test_images):
     generate_image_files_from_eis(test_dataset,eis_col_names,config['TEST_IMAGES_PATH'],config['ExperimentName'],DATA_AUGMENTATION_FACTOR=1)
 
-def load_soc_dataset(battery_list,soc_list, dataset_path,show_data=False):
+def load_soc_dataset(measure_list,soc_list, dataset_path,show_data=False):
+  ''' Loads the dataset from the CVS file vith EIS data and returns the dataset and the EIS column names '''
   dataset = pd.DataFrame(columns=['SOC','BATTERY'])
-  for battery_index, battery_value in enumerate(battery_list):
+  for battery_index, battery_value in enumerate(measure_list):
     if show_data:
       print("battery: "+str(battery_value))
     #Create a Pandas dataframe from CSV
-    df_original= pd.read_csv(dataset_path+"/BATT_"+str(battery_value)+"_ALL_SOC.csv",names=soc_list, low_memory=False)
+    df_original= pd.read_csv(dataset_path+CSV_FILE_PREFIX+str(battery_value)+"_ALL_SOC.csv",names=soc_list, low_memory=False)
     #note: csv from matlab are in format 12-64i.
     #      'i" must be replaced with "j" into the CVS file
     df = df_original.apply(lambda col: col.apply(lambda val: val.replace('i','j')))
@@ -143,7 +148,7 @@ def load_soc_dataset_ec(battery_list,soc_list, dataset_path,show_data=False):
     if show_data:
       print("battery: "+str(battery_value))
     #Create a Pandas dataframe from CSV
-    df= pd.read_csv(dataset_path+"/BATT_"+str(battery_value)+"_EC.csv",names=soc_list, low_memory=False)
+    df= pd.read_csv(dataset_path+CSV_FILE_PREFIX+str(battery_value)+"_EC.csv",names=soc_list, low_memory=False)
     df_rows=df.transpose()
 
     eis_col_names= []
@@ -201,7 +206,7 @@ def generate_image_files_from_eis(dataset,eis_col_names,IMAGES_PATH,experimentNa
  
         if augmentation_index>0:
           # apply offset to image file name for file generated with data augmentation                     
-          augmented_battery_value=AUGMENTATION_OFFSET+(DATA_AUGMENTATION_FACTOR_OFFSET*augmentation_index)+battery_value
+          augmented_battery_value=AUGMENTATION_OFFSET+(DATA_AUGMENTATION_FACTOR_OFFSET*augmentation_index)+rowIndex
           battery_name_str=str(augmented_battery_value)
 
           # AWG noise must be added before rescaling    
@@ -217,7 +222,7 @@ def generate_image_files_from_eis(dataset,eis_col_names,IMAGES_PATH,experimentNa
         EIS_real=df_real_copy.iloc[rowIndex,:]
         EIS_img=df_img_copy.iloc[rowIndex,:] 
 
-        img_file_name=IMAGES_PATH+"/"+experimentName+"/Batt_"+battery_name_str+"_"+str(soc_label)+".png"
+        img_file_name=IMAGES_PATH+"/"+experimentName+CSV_FILE_PREFIX+battery_name_str+"_"+str(soc_label)+".png"
         print(img_file_name)
         plotAndSave_complex(EIS_real,EIS_img,img_file_name)
 
@@ -247,7 +252,7 @@ def generate_image_from_ec(dataset,feature_col_names,IMAGES_PATH,experimentName,
       print("soc: "+str(soc_label))
       battery_value=dataset["BATTERY"].iloc[rowIndex]
       print("battery: "+str(battery_value))
-      img_file_name=IMAGES_PATH+"/"+experimentName+"/Batt_"+str(battery_value)+"_"+str(soc_label)+".png"
+      img_file_name=IMAGES_PATH+"/"+experimentName+CSV_FILE_PREFIX+str(battery_value)+"_"+str(soc_label)+".png"
       print(img_file_name)
       if(image_mode=="plotAndSave"):
         plotAndSave(df.iloc[rowIndex,:],img_file_name)
@@ -262,7 +267,7 @@ def generate_image_from_ec(dataset,feature_col_names,IMAGES_PATH,experimentName,
           battery_value=augmented_battery_value+index
           df_noise= np.random.rand(original.shape[0])*NOISE_AMOUNT
           df_with_noise= original + df_noise
-          img_file_name=IMAGES_PATH+"/"+experimentName+"/Batt_"+str(battery_value)+"_"+str(soc_label)+".png"
+          img_file_name=IMAGES_PATH+"/"+experimentName+CSV_FILE_PREFIX+str(battery_value)+"_"+str(soc_label)+".png"
           print(img_file_name)
           if(image_mode=="plotAndSave"):
             plotAndSave(df_with_noise,img_file_name)
