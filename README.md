@@ -1,2 +1,21 @@
 # ml-4-measurement
-software library for machine learning application in measurement
+
+This repository contains some libraries of functions used different machine learning projects.
+
+## Repository Content
+
+- dataset
+- notebooks
+- src
+
+## Libraries
+
+## ML Colab utility
+
+Support functions to run Notebooks in cloud environment 
+
+### ML Utils
+
+### ML for batteries 
+
+
