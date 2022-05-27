@@ -239,3 +239,19 @@ def plottingfunction(dataX,dataY, ax=None, show=True):
         plt.show()
 
     return fig, ax, line
+
+def show_pair_plot(data,var_columns,category_columns,title):
+    import seaborn as sns;
+    sns.pairplot(data,vars=var_columns,hue=category_columns,kind='hist')
+    plt.show()
+
+def show_coorelation_plot(data):
+    #obtain the correlations of each features in dataset
+    import seaborn as sns;
+    import matplotlib.pyplot as plt
+    corrmat = data.corr()
+    top_corr_features = corrmat.index
+    plt.figure(figsize=(20,20))
+    #plot heat map
+    g=sns.heatmap(data[top_corr_features].corr(),annot=True,cmap="RdYlGn")
+    plt.show()
