@@ -198,7 +198,7 @@ def generate_image_files_from_eis(dataset,eis_col_names,IMAGES_PATH,experimentNa
   for rowIndex in range(0,row_number,1):
       soc_label=dataset["SOC"].iloc[rowIndex]
       print("soc: "+str(soc_label))
-      battery_value=dataset["BATTERY"].iloc[rowIndex]
+      battery_value=dataset["EIS_ID"].iloc[rowIndex]
       battery_name_str=str(battery_value)
       print("battery: "+battery_name_str)
 
@@ -254,9 +254,9 @@ def generate_image_from_ec(dataset,feature_col_names,IMAGES_PATH,experimentName,
   for rowIndex in range(0,row_number,1):
       soc_label=dataset["SOC"].iloc[rowIndex]
       print("soc: "+str(soc_label))
-      battery_value=dataset["BATTERY"].iloc[rowIndex]
-      print("battery: "+str(battery_value))
-      img_file_name=IMAGES_PATH+"/"+experimentName+CSV_FILE_PREFIX+str(battery_value)+"_"+str(soc_label)+".png"
+      EIS_id_value=dataset["EIS_ID"].iloc[rowIndex]
+      print("EIS ID: "+str(EIS_id_value))
+      img_file_name=IMAGES_PATH+"/"+experimentName+CSV_FILE_PREFIX+str(EIS_id_value)+"_"+str(soc_label)+".png"
       print(img_file_name)
       if(image_mode=="plotAndSave"):
         plotAndSave(df.iloc[rowIndex,:],img_file_name)
@@ -266,12 +266,12 @@ def generate_image_from_ec(dataset,feature_col_names,IMAGES_PATH,experimentName,
 
       if DATA_AUGMENTATION_FACTOR>1:
         original=df.iloc[rowIndex,:]
-        augmented_battery_value=1000+(battery_value*DATA_AUGMENTATION_FACTOR)
+        augmented_battery_value=1000+(EIS_id_value*DATA_AUGMENTATION_FACTOR)
         for index in range(1,DATA_AUGMENTATION_FACTOR,1):
-          battery_value=augmented_battery_value+index
+          EIS_id_value=augmented_battery_value+index
           df_noise= np.random.rand(original.shape[0])*NOISE_AMOUNT
           df_with_noise= original + df_noise
-          img_file_name=IMAGES_PATH+"/"+experimentName+CSV_FILE_PREFIX+str(battery_value)+"_"+str(soc_label)+".png"
+          img_file_name=IMAGES_PATH+"/"+experimentName+CSV_FILE_PREFIX+str(EIS_id_value)+"_"+str(soc_label)+".png"
           print(img_file_name)
           if(image_mode=="plotAndSave"):
             plotAndSave(df_with_noise,img_file_name)
