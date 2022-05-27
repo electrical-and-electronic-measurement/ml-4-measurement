@@ -1,4 +1,5 @@
 from audioop import minmax
+from re import split
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -111,12 +112,14 @@ def build_image_dataset_from_eis(measure_list,test_battery_list,config,generate_
 
 def load_soc_dataset(measure_list,soc_list, dataset_path,show_data=False):
   ''' Loads the dataset from the CVS file vith EIS data and returns the dataset and the EIS column names '''
-  dataset = pd.DataFrame(columns=['SOC','BATTERY'])
-  for battery_index, battery_value in enumerate(measure_list):
+  dataset = pd.DataFrame(columns=['SOC','BATTERY_ID','EIS_ID'])
+  for measure_index, measure_id in enumerate(measure_list):
+    battery_id=measure_id.split("_")[0]
     if show_data:
-      print("battery: "+str(battery_value))
+      print("measure_id: "+str(measure_id))
+      print("battery_id: "+str(battery_id))
     #Create a Pandas dataframe from CSV
-    df_original= pd.read_csv(dataset_path+CSV_FILE_PREFIX+str(battery_value)+"_ALL_SOC.csv",names=soc_list, low_memory=False)
+    df_original= pd.read_csv(dataset_path+CSV_FILE_PREFIX+str(measure_id)+"_ALL_SOC.csv",names=soc_list, low_memory=False)
     #note: csv from matlab are in format 12-64i.
     #      'i" must be replaced with "j" into the CVS file
     df = df_original.apply(lambda col: col.apply(lambda val: val.replace('i','j')))
@@ -135,7 +138,8 @@ def load_soc_dataset(measure_list,soc_list, dataset_path,show_data=False):
 
     #for rowIndex, row in enumerate(df_rows):
     df_rows['SOC']=soc_list
-    df_rows['BATTERY']=battery_value
+    df_rows['EIS_ID']=measure_id
+    df_rows['BATTERY_ID']=battery_id
     dataset= dataset.append(df_rows)
     if show_data:
       print(df_rows)
