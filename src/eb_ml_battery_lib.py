@@ -298,3 +298,49 @@ def convertToImageAndSave(df,img_file_name):
   im = Image.fromarray(img_array)
   #plt.imshow(img_array, cmap='Greys')
   im.save(img_file_name)
+
+def EIS_data_augmentation(dataset,eis_col_names,DATA_AUGMENTATION_FACTOR=1,NOISE_AMOUNT=1e-4):
+
+  dataset_augmented= dataset.copy(deep=True)
+  row_number=dataset.shape[0]
+  print("dataset row number: "+str(row_number))
+
+  df=dataset[eis_col_names]
+  df_real= df.apply(lambda col: col.apply(lambda val: np.real(val)))
+  df_img= df.apply(lambda col: col.apply(lambda val: np.imag(val)))
+  #print(df_img)
+
+  print("df_real shape: " + str(df_real.shape))
+  print("df_img shape: " + str(df_img.shape))
+
+  for rowIndex in range(0,row_number,1):
+      soc_label=dataset["SOC"].iloc[rowIndex]
+      print("soc: "+str(soc_label))
+      measure_id=dataset["EIS_ID"].iloc[rowIndex]
+      EIS_ID_str=str(measure_id)
+      print("ESI ID: "+EIS_ID_str)
+      battery_id=measure_id.split("_")[0]
+
+      
+      for augmentation_index in range(0,DATA_AUGMENTATION_FACTOR,1):
+        print("augmentation_index: "+str(augmentation_index))
+        df_real_copy = df_real.copy(deep=True)
+        df_img_copy = df_img.copy(deep=True)
+ 
+        if augmentation_index>0:
+          # apply offset to image file name for file generated with data augmentation                     
+          augmented_battery_value=AUGMENTATION_OFFSET+(DATA_AUGMENTATION_FACTOR_OFFSET*augmentation_index)+rowIndex
+          EIS_ID_str=str(augmented_battery_value)
+
+          # AWG noise must be added before rescaling    
+          df_real_copy= df_real_copy + np.random.normal(0, NOISE_AMOUNT, df_real.shape)
+          df_img_copy = df_img_copy+ np.random.normal(0, NOISE_AMOUNT, df_img.shape)          
+
+        #Get EIS data for a single SoC value from the dataset                    
+        EIS_real=df_real_copy.iloc[rowIndex,:]
+        EIS_imag=df_img_copy.iloc[rowIndex,:] 
+        EIS_complex=EIS_real+1j*EIS_imag
+        df_commn=dataset[['SOC','BATTERY_ID','EIS_ID']] 
+        df_commn['BATTERY_ID']=battery_id
+        dataset_augmented.append(EIS_complex,ignore_index=True)
+  return dataset_augmented
