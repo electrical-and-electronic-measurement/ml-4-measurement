@@ -31,7 +31,7 @@ def get_root_path(gDrivePath):
     
     else:
         print("NOT running on COLAB")
-        ROOT_DIR="./"
+        ROOT_DIR=".."
     return ROOT_DIR
 
 """ Print information about sytem CPU, GPU, and RAM """
