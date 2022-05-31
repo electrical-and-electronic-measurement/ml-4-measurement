@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from fastai.vision.all import *
 from sklearn.preprocessing import MinMaxScaler
-from eb_ml_utils import get_items_func,rescale_dataset,plottingfunction
+from eb_ml_utils import get_items_func,rescale_dataset,plottingfunction,build_tabular_learner
 
 # CONFIG PAREMETERS
 CSV_FILE_PREFIX='/EIS_BATT'
@@ -389,3 +389,19 @@ def get_EIS_tabular_dataset_rectangular(EIS_dataset,feature_col_names):
         rect_feature_names.append(feat_name+"_imag")
 
     return dataset_rect,rect_feature_names
+
+def build_EIS_tabular_learner_rectangular(config,measure_list):
+    #Path / default location for saving/loading models
+    model_path = '..'
+
+    #The dependent variable/target
+    dep_var = 'SOC_float'
+
+    #The list of categorical features in the dataset 
+    cat_names = [] 
+
+    dataset,feature_col_names=load_soc_dataset(measure_list,config["soc_list"],config['DATASETS_DIR'])
+    dataset_rect,feature_col_names_rect=get_EIS_tabular_dataset_rectangular(dataset,feature_col_names)
+    splits = RandomSplitter(valid_pct=0.2)(range_of(dataset_rect))
+    learn = build_tabular_learner(dataset_rect,splits,model_path,dep_var,cat_names,feature_col_names_rect)
+    return learn

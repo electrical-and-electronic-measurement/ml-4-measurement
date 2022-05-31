@@ -259,7 +259,7 @@ def show_coorelation_plot(data):
     plt.show()
 
 def build_tabular_learner(dataset,splits,model_path,dep_var,cat_names,cont_names,bs=32):
-    to = TabularPandas(dataset, procs=[Categorify, FillMissing,Normalize],cat_names = cat_names,cont_names = cont_names, y_names=dep_var,splits=splits)
+    to = TabularPandas(dataset, procs=[Categorify,FillMissing,Normalize],cat_names = cat_names,cont_names = cont_names, y_names=dep_var,splits=splits)
     dls = to.dataloaders(bs)
     learn = tabular_learner(dls, layers=[300,200, 100, 50],metrics= rmse,path=model_path)
     return learn
