@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from fastai.vision.all import *
+from fastai.tabular import *
+from fastai.tabular.all import *
 
 
 def build_and_train_custom_learner(dataset_list,test_dataset_list,config,data_loader_function, image_generator_function,
@@ -255,3 +257,10 @@ def show_coorelation_plot(data):
     #plot heat map
     g=sns.heatmap(data[top_corr_features].corr(),annot=True,cmap="RdYlGn")
     plt.show()
+
+def build_tabular_learner(dataset,splits,model_path,dep_var,cat_names,cont_names,bs=32):
+    to = TabularPandas(dataset, procs=[Categorify, FillMissing,Normalize],cat_names = cat_names,cont_names = cont_names, y_names=dep_var,splits=splits)
+    dls = to.dataloaders(bs)
+    learn = tabular_learner(dls, layers=[300,200, 100, 50],metrics= rmse,path=model_path)
+    return learn
+

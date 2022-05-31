@@ -344,3 +344,48 @@ def EIS_data_augmentation(dataset,eis_col_names,DATA_AUGMENTATION_FACTOR=1,NOISE
         df_commn['BATTERY_ID']=battery_id
         dataset_augmented.append(EIS_complex,ignore_index=True)
   return dataset_augmented
+
+def get_EIS_tabular_dataset_polar(EIS_dataset,feature_col_names):
+    '''Returns a tabular dataset with EIS data in polar coordinates and a list of feature names'''
+    EIS_dataset['SOC_float'] = EIS_dataset.SOC.astype('float')
+    df_common=EIS_dataset[['SOC_float','BATTERY_ID','EIS_ID']]
+
+    # Complex Z(f) split in two feature in polar and rectangular format
+    # Polar Tabular dataset
+    from cmath import phase, polar, rect
+    df=EIS_dataset[feature_col_names]
+    df_phi= df.apply(lambda col: col.apply(lambda val: phase(val)))
+    df_abs= df.apply(lambda col: col.apply(lambda val: abs(val)))
+
+    dataset_polar= df_phi.join(df_abs,lsuffix='_abs' , rsuffix="_phi")
+    dataset_polar= df_common.join(dataset_polar)
+    #print(dataset_polar)
+    polar_feature_names= list()
+    for feat_name in feature_col_names:
+        polar_feature_names.append(feat_name+"_phi")
+        polar_feature_names.append(feat_name+"_abs")
+    
+    return dataset_polar,polar_feature_names
+
+def get_EIS_tabular_dataset_rectangular(EIS_dataset,feature_col_names):
+    '''Returns a tabular dataset with EIS data in polar coordinates and a list of feature names'''
+    EIS_dataset['SOC_float'] = EIS_dataset.SOC.astype('float')
+    df_common=EIS_dataset[['SOC_float','BATTERY_ID','EIS_ID']]
+
+    # Complex Z(f) split in two feature in polar and rectangular format
+    # Polar Tabular dataset
+    from cmath import phase, polar, rect
+    df=EIS_dataset[feature_col_names]
+    df_real= df.apply(lambda col: col.apply(lambda val: np.real(val)))
+    df_imag= df.apply(lambda col: col.apply(lambda val: np.imag(val)))
+
+    dataset_rect= df_real.join(df_imag,lsuffix='_real' , rsuffix="_imag")
+    dataset_rect= df_common.join(dataset_rect)
+    #print(dataset_rect)
+    
+    rect_feature_names= list()
+    for feat_name in feature_col_names:
+        rect_feature_names.append(feat_name+"_real")
+        rect_feature_names.append(feat_name+"_imag")
+
+    return dataset_rect,rect_feature_names
