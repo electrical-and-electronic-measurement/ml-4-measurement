@@ -347,6 +347,7 @@ def EIS_data_augmentation(dataset,eis_col_names,DATA_AUGMENTATION_FACTOR=1,NOISE
 
 def get_EIS_tabular_dataset_polar(EIS_dataset,feature_col_names):
     '''Returns a tabular dataset with EIS data in polar coordinates and a list of feature names'''
+    EIS_dataset.reset_index(inplace=True,drop=True)
     EIS_dataset['SOC_float'] = EIS_dataset.SOC.astype('float')
     df_common=EIS_dataset[['SOC_float','BATTERY_ID','EIS_ID']]
 
@@ -369,6 +370,7 @@ def get_EIS_tabular_dataset_polar(EIS_dataset,feature_col_names):
 
 def get_EIS_tabular_dataset_rectangular(EIS_dataset,feature_col_names):
     '''Returns a tabular dataset with EIS data in polar coordinates and a list of feature names'''
+    EIS_dataset.reset_index(inplace=True,drop=True)
     EIS_dataset['SOC_float'] = EIS_dataset.SOC.astype('float')
     df_common=EIS_dataset[['SOC_float','BATTERY_ID','EIS_ID']]
 
