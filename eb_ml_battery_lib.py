@@ -175,7 +175,7 @@ def load_soc_dataset_ec(battery_list,soc_list, dataset_path,show_data=False):
 
 def generate_image_files_from_measure_table(dataset,labels,test_meas_ids,IMAGES_PATH,experimentName,rescale=False,mode ='real+imag', DATA_AUGMENTATION_FACTOR=1,NOISE_AMOUNT=1e-4):
 
-  from LiBEIS.utilities import read_measurement_table,FeatureExtractionMode,DataNormaliser,get_xy_values
+  from LiBEIS.code.utilities import read_measurement_table,FeatureExtractionMode,DataNormaliser,get_xy_values
     
   row_number=dataset.shape[0]
   print("dataset row number: "+str(row_number))
