@@ -179,6 +179,56 @@ def load_soc_dataset_ec(battery_list,soc_list, dataset_path,show_data=False):
 
   return dataset,eis_col_names
 
+def generate_image_files_from_measure_table(dataset,labels,test_meas_ids,IMAGES_PATH,experimentName,rescale=False,mode ='real+imag', DATA_AUGMENTATION_FACTOR=1,NOISE_AMOUNT=1e-4):
+
+  from LiBEIS.code.utilities import read_measurement_table,FeatureExtractionMode,DataNormaliser,get_xy_values
+    
+  row_number=dataset.shape[0]
+  print("dataset row number: "+str(row_number))
+  print("start image file generation. IMAGE_PATH: "+IMAGES_PATH)
+
+  #Create a root folder for image dataset
+  import os
+  if not os.path.exists(IMAGES_PATH):
+    os.mkdir(IMAGES_PATH)
+    
+  if not os.path.exists(IMAGES_PATH+"/"+experimentName):
+    os.mkdir(IMAGES_PATH+"/"+experimentName)
+    
+  for row_index in range(0,row_number,1):
+    soc_label=labels[row_index]
+    print("soc: "+str(soc_label))
+    measure_id=test_meas_ids[row_index]
+    print("measure: "+measure_id)
+
+    row = dataset[row_index]
+    
+    x_values,y_values = get_xy_values(row,mode)
+
+    for augmentation_index in range(0,DATA_AUGMENTATION_FACTOR,1):
+        print("augmentation_index: "+str(augmentation_index))
+        x_values_copy = x_values.copy()
+        y_values_copy = y_values.copy()
+
+        if augmentation_index>0:
+            # apply offset to image file name for file generated with data augmentation                     
+            augmented_measure_id=AUGMENTATION_OFFSET+(DATA_AUGMENTATION_FACTOR_OFFSET*augmentation_index)+row_index
+            measure_id = str(augmented_measure_id)
+
+            # AWG noise must be added before rescaling    
+            x_values_copy = x_values_copy + np.random.normal(0, NOISE_AMOUNT, len(x_values))
+            y_values_copy = y_values_copy + np.random.normal(0, NOISE_AMOUNT, len(y_values))
+
+        # After adding the desidered amount of noise the values of EIS can be rescaled to 0-1 range      
+        if rescale:
+            x_values_copy,scaler= rescale_dataset(x_values_copy)
+            y_values_copy, scaler= rescale_dataset(y_values_copy)
+
+        img_file_name = IMAGES_PATH+"/"+experimentName+"-"+measure_id+"_"+str(soc_label)+".png"
+        print(img_file_name)
+        plotAndSave_complex(x_values_copy, y_values_copy, img_file_name)
+
+
 def generate_image_files_from_measure_table(dataset,labels,test_meas_ids,image_path,experimentName,rescale=False,mode ='real+imag'):
 
   
