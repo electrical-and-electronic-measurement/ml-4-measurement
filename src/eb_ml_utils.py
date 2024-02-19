@@ -58,27 +58,16 @@ generate_training_images=False,generate_test_images=False,rescale=True):
 
 
 def build_learner(config):
-  """ Train a classifier model using a custom data loader and  image generator functions """
+  """ build a fastai learner with dataloader from config """
 
-  splitter = config['Splitter'] # RandomSplitter(valid_pct=0.3, seed=41) RandomSplitter(valid_pct=0.3, seed=41)
+  dl = build_data_loader(config)
+  
+  if config.get('models_path') is not None:
+    model_dir=config['models_path']
+  else:
+    model_dir='models'
 
-  #FastAI image pipeline
-  item_tfms = [Resize(224)]
-  batch_tfms=[Normalize.from_stats(*imagenet_stats)]
-
-  rePat=config['rePat'] 
-
-  #Build FastAI DataBlock
-  dblock = DataBlock(blocks=(ImageBlock, CategoryBlock),
-                   get_items=get_items_func,
-                   get_y=RegexLabeller(rePat),
-                   splitter=splitter,
-                   item_tfms=item_tfms,
-                   batch_tfms=batch_tfms)
-
-  dblock.summary(config["IMAGES_PATH"])
-  dl= dblock.dataloaders(config["IMAGES_PATH"],bs=32)
-  learn = cnn_learner(dl, resnet18, metrics=accuracy)
+  learn = cnn_learner(dl, resnet18, model_dir=model_dir, metrics=accuracy)
   return learn
 
    
@@ -120,8 +109,9 @@ def get_root_path():
   return os.path.dirname(os.path.abspath(__file__))
 
 from fastai.vision.all import *
-def score_model(saved_weights,data_loader):
-  learn = cnn_learner(data_loader, resnet18, metrics=accuracy)
+def score_model(saved_weights,data_loader,models_path="models"):
+
+  learn = cnn_learner(data_loader, resnet18,model_dir=models_path, metrics=accuracy)
   learn = learn.load(saved_weights)
   interpretation = ClassificationInterpretation.from_learner(learn)
   interpretation.plot_confusion_matrix(normalize=False, figsize=(30, 20))
@@ -264,3 +254,128 @@ def build_tabular_learner(dataset,splits,model_path,dep_var,cat_names,cont_names
     learn = tabular_learner(dls, layers=[300,200, 100, 50],metrics= rmse,path=model_path)
     return learn
 
+
+def open_image_to_tensor(path:str):
+    from PIL import Image
+    img = Image.open(path)
+    img = img.convert("RGB")
+    img_t = torch.from_numpy(np.array(img)).float()
+    img_t = img_t.permute(2, 0, 1)
+    return img_t
+
+
+def open_image_and_apply_transformation(img_path:str):
+    from torchvision import transforms
+    # Open image file
+    img = Image.open(img_path)
+
+    # Remove alpha channel if present
+    if img.mode == 'RGBA':
+        img = img.convert('RGB')
+
+
+    # Transform image to match model's input requirements
+    img_transform = transforms.Compose([
+        transforms.Resize(256), 
+        transforms.CenterCrop(224),       
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+    img = img_transform(img)
+    img = img.unsqueeze(0)
+    return img
+
+
+
+def find_last_conv(model):
+    import torch.nn as nn
+    last_conv = None
+    for name, module in model.named_modules():
+        if isinstance(module, nn.Conv2d):
+            last_conv = module
+    return last_conv
+
+def compute_grad_cam(model, img, target_layer):
+    # Set model to evaluation mode
+    model.eval()
+
+    # Forward pass
+    x = target_layer(img)
+    
+    # Get the index corresponding to the predicted class
+    # One-hot encode the output class if it is a vector
+    if len(x.shape) == 1:
+        index = torch.argmax(x).unsqueeze(0)
+    else:
+        index = torch.zeros(x.shape).scatter_(1, torch.argmax(x).unsqueeze(0), 1).bool()
+
+    # Backward pass
+    model.zero_grad()
+    x.backward(gradient=index, retain_graph=True)
+
+    # Get gradients
+    gradients = model.get_activations_gradient()
+
+    # Pool the gradients across all the channels
+    pooled_gradients = torch.mean(gradients, dim=[0, 2, 3])
+
+    # Get activations of last convolutional layer
+    activations = model.get_activations(img).detach()
+    
+    # Weight the channels by corresponding gradients
+    for i in range(activations.shape[1]):
+        activations[:, i, :, :] *= pooled_gradients[i]
+
+    # Average the channels of the activations
+
+    heatmap = torch.mean(activations, dim=1).squeeze()
+
+    # ReLU on top of the heatmap
+    # Expression (2) in https://arxiv.org/pdf/1610.02391.pdf
+    heatmap = np.maximum(heatmap, 0)
+
+    # Normalize the heatmap
+    heatmap /= torch.max(heatmap)
+
+    # Return to cpu
+    heatmap = heatmap.cpu().numpy()
+
+    return heatmap
+
+def plot_confusion_matrix(targets,decoded,cmap='Blues',fig_size=(10,7)):
+  '''Plot confusion matrix for targets and decoded. 
+  target is the array of the true labels of the test dataset. decoded is the array of the predicted labels of the test dataset.
+  parameters:
+  targets: array of the true labels of the test dataset
+  decoded: array of the predicted labels of the test dataset
+  cmap: color map for the confusion matrix
+  fig_size: size of the figure
+   '''
+
+  from sklearn.metrics import confusion_matrix
+  import seaborn as sn
+  import pandas as pd
+  import matplotlib.pyplot as plt
+  array = confusion_matrix(targets, decoded, normalize='true')
+  df_cm = pd.DataFrame(array, index = [i for i in range(0,10)],
+                      columns = [i for i in range(0,10)])
+
+  plt.figure(figsize = fig_size)
+  sn.heatmap(df_cm, annot=True, fmt='.2f', cmap='Blues')
+  plt.xlabel('Predicted class index')
+  plt.ylabel('True class index')
+  plt.show()
+  return array
+
+def plot_class_distance_histogram(targets,decoded):
+  class_distances = targets-decoded
+  class_distances = class_distances.numpy()
+
+  import matplotlib.pyplot as plt
+  plt.hist(class_distances, bins=20)
+  plt.axvline(x=-2, color='r')
+  plt.axvline(x=2, color='r')
+  plt.xlabel('class distance')
+  plt.ylabel('number of samples')
+  plt.show()
+  return class_distances

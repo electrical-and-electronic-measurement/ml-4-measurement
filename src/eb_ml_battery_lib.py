@@ -1,11 +1,17 @@
 from audioop import minmax
+from cmath import exp
+import cmath
 from re import split
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from fastai.vision.all import *
 from sklearn.preprocessing import MinMaxScaler
-from eb_ml_utils import get_items_func,rescale_dataset,plottingfunction,build_tabular_learner
+
+from ml4measurement.eb_ml_utils import get_items_func,rescale_dataset,plottingfunction,build_tabular_learner,get_image_files_filtered
+
+from LiBEIS.code.utilities import get_patterns,get_xy_values,augment_meas_data
+
 
 # CONFIG PAREMETERS
 CSV_FILE_PREFIX='/EIS_BATT'
@@ -173,6 +179,44 @@ def load_soc_dataset_ec(battery_list,soc_list, dataset_path,show_data=False):
 
   return dataset,eis_col_names
 
+def generate_image_files_from_measure_table(dataset,labels,test_meas_ids,image_path,experimentName,rescale=False,mode ='real+imag'):
+
+  
+    
+  row_number=dataset.shape[0]
+  print("dataset row number: "+str(row_number))
+  print("start image file generation. IMAGE_PATH: "+image_path)
+
+  #Create a root folder for image dataset
+  import os
+  if not os.path.exists(image_path):
+    os.mkdir(image_path)
+    
+  for row_index in range(0,row_number,1):
+    soc_label=labels[row_index]
+    print("soc: "+str(soc_label))
+    measure_id=test_meas_ids[row_index]
+    print("measure: "+measure_id)
+
+    row = dataset[row_index]
+
+    x_values, y_values, y2_values = get_xy_values(row,mode)
+
+    # EIS can be rescaled to 0-1 range      
+    if rescale:
+        x_values,scaler= rescale_dataset(x_values)
+        y_values, scaler= rescale_dataset(y_values)
+        if mode=='bode':
+          y2_values, scaler= rescale_dataset(y2_values)
+
+    img_file_name = image_path+"/"+experimentName+"-"+measure_id+"_"+str(soc_label)+".png"
+    print(img_file_name)
+    if mode=='bode':
+      plot_and_save_bode(x_values, y_values, y2_values, img_file_name)
+    else:
+      plot_and_save_complex(x_values, y_values, img_file_name)
+
+
 def generate_image_files_from_eis(dataset,eis_col_names,IMAGES_PATH,experimentName,rescale=False,DATA_AUGMENTATION_FACTOR=1,NOISE_AMOUNT=1e-4):
 
   row_number=dataset.shape[0]
@@ -228,7 +272,38 @@ def generate_image_files_from_eis(dataset,eis_col_names,IMAGES_PATH,experimentNa
 
         img_file_name=IMAGES_PATH+"/"+experimentName+CSV_FILE_PREFIX+battery_name_str+"_"+str(soc_label)+".png"
         print(img_file_name)
-        plotAndSave_complex(EIS_real,EIS_img,img_file_name)
+        plot_and_save_complex(EIS_real,EIS_img,img_file_name)
+
+def compute_image_overlay(image_files):
+    from PIL import Image
+    ''' Compute the overlay of all the images in the list '''
+    background = Image.open(image_files[0])
+    # Convert image to RGBA
+    background = background.convert("RGBA") 
+ 
+    for i in range(1,len(image_files)):
+        img = Image.open(image_files[i])
+        img = img.convert("RGBA")
+        # Make white background transparent
+        datas = img.getdata()
+
+        newData = []
+        for item in datas:
+            if item[0] == 255 and item[1] == 255 and item[2] == 255:
+                newData.append((255, 255, 255, 0))
+            else:
+                newData.append(item)
+
+        img.putdata(newData)
+        background.alpha_composite(img)
+    return background    
+
+def get_image_file_names_for_soc(image_path,soc):
+    '''get all image file names for a given soc value'''
+    re_str_soc=r'^.*_('+str(soc)+').png$'
+    regExfilter = re.compile(re_str_soc)
+    image_files_soc=get_image_files_filtered(image_path,regExfilter)
+    return image_files_soc
 
 def generate_image_from_ec(dataset,feature_col_names,IMAGES_PATH,experimentName,rescale=True,DATA_AUGMENTATION_FACTOR=1,NOISE_AMOUNT=1e-5,image_mode="plotAndSave"):
 
@@ -285,10 +360,45 @@ def plotAndSave(df,img_file_name):
     fig.savefig(img_file_name)
     matplotlib.pyplot.close(fig)
 
-def plotAndSave_complex(df_real,df_img,img_file_name):
+def plot_and_save_complex(df_real,df_img,img_file_name):
   fig, ax, _ = plottingfunction(df_real,df_img,show=False)
   ax.get_yaxis().set_visible(False)
   ax.get_xaxis().set_visible(False)
+  fig.savefig(img_file_name)
+  matplotlib.pyplot.close(fig)
+
+def plot_and_save_bode2(freqs,magnitudes,phases,img_file_name):
+
+  #plot bode diagram and save it to a file
+  fig, ax = plt.subplots(2, 1, figsize=(10, 10))
+  ax[0].semilogx(freqs, magnitudes)
+  #ax[0].set_ylabel('Magnitude [dB]')
+  #ax[0].set_xlabel('Frequency [Hz]')
+  #ax[0].set_title('Bode plot')
+  ax[1].semilogx(freqs, phases)
+  #ax[1].set_ylabel('Phase [deg]')
+  #ax[1].set_xlabel('Frequency [Hz]')
+  #ax[1].set_title('Bode plot')
+  fig.get_axes()[0].get_yaxis().set_visible(False)
+  fig.get_axes()[1].get_yaxis().set_visible(False)
+  fig.get_axes()[0].get_xaxis().set_visible(False)
+  fig.get_axes()[1].get_xaxis().set_visible(False)
+  #ax.get_yaxis().set_visible(False)
+  #ax.get_xaxis().set_visible(False)
+  fig.savefig(img_file_name)
+  matplotlib.pyplot.close(fig)
+
+
+def plot_and_save_bode(freqs,magnitudes,phases,img_file_name):
+
+  #plot bode diagram and save it to a file
+  fig, ax = plt.subplots()
+  ax.semilogx(freqs, magnitudes,'o-',color='red')
+  ax2=ax.twinx()
+  ax2.semilogx(freqs, phases,'o-',color='blue')
+  ax.get_yaxis().set_visible(False)
+  ax.get_xaxis().set_visible(False)
+  ax2.get_yaxis().set_visible(False)
   fig.savefig(img_file_name)
   matplotlib.pyplot.close(fig)
 
@@ -407,3 +517,77 @@ def build_EIS_tabular_learner_rectangular(config,measure_list):
     splits = RandomSplitter(valid_pct=0.2)(range_of(dataset_rect))
     learn = build_tabular_learner(dataset_rect,splits,model_path,dep_var,cat_names,feature_col_names_rect)
     return learn
+
+from LiBEIS.code.utilities import augment_meas_data
+def generate_EIS_images_for_experiment_plan(experiment_name,experiment_runs_list,meas_table_wide,impedance_col_name,soc_col_name,
+measure_id_col_name,root_image_files_path,noise_std_dev=0.0001):
+    ''' Generate the images for the experiment run list and store them in the root_image_files_path folder.
+    A run represents a single execution of model traning/test/score pipeline. An experiment is a light-weight container for Runs
+    
+    Parameters: 
+    experiment_name: the name of the experiment
+    experiment_runs_list: list of tuples (pattern_extraction_mode,normalization_mode,data_augmentation_factor)
+    meas_table_wide: the measurement table in wide format
+    impedance_col_name: the name of the column containing the impedance values in the measurement table
+    soc_col_name: the name of the column containing the soc label values in the measurement table
+    measure_id_col_name: the name of the column containing the measure_id label in the measurement table
+    root_image_files_path: path where to store the images (a forder will be created for each experiment)
+    noise_std_dev: standard deviation of the noise to add to the images
+     '''
+    
+    df_results = pd.DataFrame()
+    num_experiment_runs = len(experiment_runs_list)
+    for run_idx, experiment in enumerate(experiment_runs_list):
+        print(f'Running experiment run  {run_idx + 1} of {num_experiment_runs}')
+
+        experiment_run_name=experiment_name+"_Exp_"+str(run_idx)
+        print("Current run name: "+experiment_run_name)
+    
+        record = generate_EIS_images_for_experiment(experiment_run_name, meas_table_wide, impedance_col_name, soc_col_name, measure_id_col_name, root_image_files_path, noise_std_dev, run_idx, experiment)
+    
+        df_results = pd.concat([record, df_results.loc[:]]).reset_index(drop=True)
+    return df_results
+
+def generate_EIS_images_for_experiment(experiment_run_name, meas_table_wide, impedance_col_name, soc_col_name, measure_id_col_name, root_image_files_path, noise_std_dev, run_idx, experiment):
+    data_augmentation_factor=experiment[2]
+
+    if(data_augmentation_factor>1):
+        print("Data augmentation factor is greater than 1. Augmenting data...")
+        augmented_meas_table_wide=augment_meas_data(meas_table_wide,
+              impedance_col_name=impedance_col_name,
+              meas_id_col_name=measure_id_col_name,
+              data_augmentation_factor=data_augmentation_factor,
+              noise_std_dev=noise_std_dev
+            )
+    else:
+        augmented_meas_table_wide=meas_table_wide
+    
+    #Compute the patterns
+    patterns = get_patterns(augmented_meas_table_wide, impedance_col_name,
+                            mode = experiment[0].mode, 
+                            kwargs = experiment[0].params)
+    #Perform data normalisation
+    patterns = experiment[1].normalise(patterns)
+    data_augmentation_factor=experiment[2]
+
+    image_path = root_image_files_path+"/"+experiment_run_name
+    
+    soc_labels = augmented_meas_table_wide[(soc_col_name)].to_list()
+    meas_ids = augmented_meas_table_wide[(measure_id_col_name)].to_list()
+
+    generate_image_files_from_measure_table(patterns,soc_labels,meas_ids,image_path,experiment_run_name, mode = experiment[0].mode)
+
+
+    #Add record to dataframe
+    record = pd.DataFrame({
+        'Cross_validation_experiment_index' : run_idx,
+        'Experiment index' : run_idx,
+        'Feature extraction mode' : experiment[0].mode,
+        'Feature normalisation mode' : experiment[1].name,
+        'Data augmentation factor' : data_augmentation_factor,
+        'Num features' : patterns.shape[1],
+        'Run name' : experiment_run_name,
+        'Image path' : image_path},
+        index = [0])
+    
+    return record
